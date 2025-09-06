@@ -69,7 +69,7 @@ else:
             df_last_week.index.name = "No"
 
             display_df = df_last_week[["日付", "タイプ", "種類", "金額"]].copy()
-            display_df["削除"] = False  # チェックボックス列追加
+            display_df["削除"] = False
 
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
@@ -139,23 +139,36 @@ else:
                     df.to_excel(writer, index=False)
                 st.success("更新しました！")
 
-            # 削除ボタン
+            # 削除ボタン → 確認フラグ
             if st.button("削除"):
-                to_delete = edited_df[edited_df["削除"] == True]
-                if not to_delete.empty:
-                    for _, row in to_delete.iterrows():
-                        mask = (
-                            (df["日付"] == row["日付"]) &
-                            (df["タイプ"] == row["タイプ"]) &
-                            (df["種類"] == row["種類"]) &
-                            (df["金額"] == row["金額"])
-                        )
-                        df = df[~mask]
-                    with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
-                        df.to_excel(writer, index=False)
-                    st.success(f"{len(to_delete)} 件の記録を削除しました。")
-                else:
-                    st.info("削除対象が選択されていません。")
+                st.session_state["confirm_delete"] = True
+
+            # 削除確認ダイアログ
+            if st.session_state.get("confirm_delete", False):
+                st.warning("選択された行を削除します。よろしいですか？")
+                choice = st.radio("削除確認", ["いいえ", "はい"], horizontal=True)
+
+                if choice == "はい":
+                    to_delete = edited_df[edited_df["削除"] == True]
+                    if not to_delete.empty:
+                        for _, row in to_delete.iterrows():
+                            mask = (
+                                (df["日付"] == row["日付"]) &
+                                (df["タイプ"] == row["タイプ"]) &
+                                (df["種類"] == row["種類"]) &
+                                (df["金額"] == row["金額"])
+                            )
+                            df = df[~mask]
+                        with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
+                            df.to_excel(writer, index=False)
+                        st.success(f"{len(to_delete)} 件の記録を削除しました。")
+                    else:
+                        st.info("削除対象が選択されていません。")
+                    st.session_state["confirm_delete"] = False
+
+                elif choice == "いいえ":
+                    st.session_state["confirm_delete"] = False
+                    st.info("削除をキャンセルしました。")
 
             # Excel ダウンロード（全記録）
             excel_buffer = io.BytesIO()
