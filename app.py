@@ -53,19 +53,41 @@ else:
             df.to_excel(writer, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の記録表示 ---
+    # --- 直近1週間の編集可能表 ---
+    st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        df['日付'] = pd.to_datetime(df['日付'])
+        df['日付'] = pd.to_datetime(df['日付']).dt.date  # 日付のみ表示
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        df_last_week = df[df['日付'] >= pd.Timestamp(one_week_ago)]
-        st.header("📊 直近1週間の記録")
-        st.dataframe(df_last_week)
-    else:
-        df_last_week = pd.DataFrame()  # 空DataFrame
-        st.info("まだ記録がありません。")
+        df_last_week = df[df['日付'] >= one_week_ago].copy()
 
-    # --- Excelダウンロード ---
-    if not df.empty:
+        # 編集用に行番号を1スタートに
+        df_last_week.reset_index(drop=True, inplace=True)
+
+        # タイプ・用途・金額を編集可能にする
+        edited_rows = []
+        for i, row in df_last_week.iterrows():
+            st.markdown(f"### 行 {i+1}")
+            edit_date = st.date_input("日付", row['日付'], key=f"date_{i}")
+            edit_type = st.selectbox("タイプ", ["支出","収入"], index=0 if row['タイプ']=="支出" else 1, key=f"type_{i}")
+            edit_usage_list = ["食費", "交通費", "日用品費", "娯楽費", "美容費", "交際費", "医療費", "その他"] if edit_type=="支出" else ["給与","その他"]
+            edit_usage = st.selectbox("用途", edit_usage_list, index=edit_usage_list.index(row['用途']), key=f"usage_{i}")
+            edit_amount = st.number_input("金額", value=int(abs(row['金額'])), step=100, key=f"amount_{i}")
+            if edit_type=="支出":
+                edit_amount = -abs(edit_amount)
+            edited_rows.append([edit_date, edit_type, edit_usage, edit_amount])
+
+        # 保存ボタン
+        if st.button("更新"):
+            for idx, values in enumerate(edited_rows):
+                df_last_week.loc[idx, ['日付','タイプ','用途','金額']] = values
+            # 元のdfの対応行を更新
+            for idx, original_idx in enumerate(df[df['日付'] >= one_week_ago].index):
+                df.loc[original_idx, ['日付','タイプ','用途','金額']] = df_last_week.loc[idx]
+            with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False)
+            st.success("更新しました！")
+
+        # Excelダウンロード
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
@@ -76,39 +98,5 @@ else:
             file_name="kakeibo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
-    # --- 編集・削除フォーム ---
-    st.subheader("✏️ 編集・削除")
-    if not df_last_week.empty:
-        options = [f"{row['日付'].date()} | {row['タイプ']} | {row['用途']} | {row['金額']}" for idx, row in df_last_week.iterrows()]
-        selected_idx = st.selectbox("編集/削除する行を選択", range(len(options)), format_func=lambda x: options[x])
-        selected_row = df_last_week.iloc[selected_idx]
-
-        with st.form("edit_form"):
-            edit_date = st.date_input("日付", selected_row['日付'].date())
-            edit_type = st.radio("タイプ", ["支出","収入"], index=0 if selected_row['タイプ']=="支出" else 1)
-            edit_usage_list = ["食費", "交通費", "日用品費", "娯楽費", "美容費", "交際費", "医療費", "その他"] if edit_type=="支出" else ["給与","その他"]
-            edit_usage = st.selectbox("用途", edit_usage_list, index=edit_usage_list.index(selected_row['用途']))
-            edit_amount = st.number_input("金額", value=int(abs(selected_row['金額'])), step=100)
-            if edit_type=="支出":
-                edit_amount = -abs(edit_amount)
-
-            col1, col2 = st.columns(2)
-            with col1:
-                delete_btn = st.form_submit_button("削除")
-            with col2:
-                update_btn = st.form_submit_button("更新")
-
-            if delete_btn:
-                df.drop(df_last_week.index[selected_idx], inplace=True)
-                with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
-                    df.to_excel(writer, index=False)
-                st.success("削除しました！")
-                st.experimental_rerun()
-
-            if update_btn:
-                df.loc[df_last_week.index[selected_idx], ['日付','タイプ','用途','金額']] = [edit_date, edit_type, edit_usage, edit_amount]
-                with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
-                    df.to_excel(writer, index=False)
-                st.success("更新しました！")
-                st.experimental_rerun()
+    else:
+        st.info("まだ記録がありません。")
