@@ -42,7 +42,7 @@ else:
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=1, format="%d")
+    amount = st.number_input("金額", step=100, format="%d")
 
     if type_ == "支出":
         amount = -abs(amount)
@@ -53,8 +53,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（編集のみ） ---
-    st.header("📊 直近1週間の記録（編集可能）")
+    # --- 表示と編集・削除機能 ---
+    st.header("📊 直近1週間の記録（編集・削除可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
@@ -67,7 +67,10 @@ else:
             df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
-            gb = GridOptionsBuilder.from_dataframe(df_last_week)
+            display_df = df_last_week.copy()
+            display_df["削除"] = False  # チェックボックス列追加
+
+            gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
             gb.configure_column(
@@ -105,11 +108,12 @@ else:
             )
 
             gb.configure_column("金額", editable=True)
+            gb.configure_column("削除", editable=True, cellEditor='agCheckboxCellEditor')
 
             grid_options = gb.build()
 
             grid_response = AgGrid(
-                df_last_week,
+                display_df,
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.VALUE_CHANGED,
                 fit_columns_on_grid_load=True,
@@ -118,15 +122,43 @@ else:
             )
 
             edited_df = pd.DataFrame(grid_response["data"])
-            edited_df.index = df_last_week.index
+            edited_df.index = display_df.index
 
-            # 更新ボタン
-            if st.button("更新"):
-                last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-                for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
-                df.to_excel(FILE_NAME, index=False)
-                st.success("更新しました！")
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                if st.button("削除"):
+                    st.session_state["confirm_delete"] = True
+            with col2:
+                if st.button("更新"):
+                    last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
+                    for idx, original_idx in enumerate(last_week_indices):
+                        df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[display_df.index[idx], ["日付", "タイプ", "種類", "金額"]]
+                    df.to_excel(FILE_NAME, index=False)
+                    st.success("更新しました！")
+
+            # 削除確認ダイアログ
+            if st.session_state.get("confirm_delete", False):
+                st.warning("チェックされた行を削除します。よろしいですか？")
+                confirm = st.radio("削除確認", ["いいえ", "はい"], horizontal=True)
+                if confirm == "はい":
+                    to_delete = edited_df[edited_df["削除"] == True]
+                    if not to_delete.empty:
+                        for _, row in to_delete.iterrows():
+                            mask = (
+                                (df["日付"] == row["日付"]) &
+                                (df["タイプ"] == row["タイプ"]) &
+                                (df["種類"] == row["種類"]) &
+                                (df["金額"] == row["金額"])
+                            )
+                            df = df[~mask]
+                        df.to_excel(FILE_NAME, index=False)
+                        st.success(f"{len(to_delete)} 件の記録を削除しました。")
+                    else:
+                        st.info("削除対象が選択されていません。")
+                    st.session_state["confirm_delete"] = False
+                elif confirm == "いいえ":
+                    st.info("削除をキャンセルしました。")
+                    st.session_state["confirm_delete"] = False
         else:
             st.info("直近1週間の記録はありません。")
     else:
