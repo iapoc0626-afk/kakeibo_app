@@ -56,16 +56,13 @@ else:
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
         # 日付列を datetime 型に変換
-        df['日付'] = pd.to_datetime(df['日付'], errors='coerce').dt.date  # 文字列を日付に変換
-        
+        df['日付'] = pd.to_datetime(df['日付'], errors='coerce')
+        df = df[df['日付'].notna()]
+        df['日付'] = df['日付'].dt.date  # 日付のみ
+
         # 比較用の日付
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        
-        # 日付列が None になった行は除外
-        df = df[df['日付'].notna()]
-        
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
-    
 
         # 行番号1スタート
         df_last_week.index = df_last_week.index + 1
@@ -76,7 +73,8 @@ else:
         gb.configure_default_column(editable=True)
         gb.configure_column("日付", type=["dateColumnFilter","customDateTimeFormat"], editable=True, cellEditor='agDatePicker')
         gb.configure_column("タイプ", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values":["支出","収入"]})
-        gb.configure_column("用途", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]})
+        gb.configure_column("用途", editable=True, cellEditor='agSelectCellEditor',
+                            cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]})
         grid_options = gb.build()
 
         grid_response = AgGrid(
@@ -112,4 +110,3 @@ else:
         )
     else:
         st.info("まだ記録がありません。")
-
