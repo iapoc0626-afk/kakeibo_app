@@ -54,7 +54,7 @@ else:
     # 入力エリア
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
-    type_ = st.radio("タイプ", ["収入", "支出"], horizontal=True)
+    type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
 
     # 用途切替
     if type_ == "支出":
@@ -79,3 +79,4 @@ else:
     # 入力済みデータ表示
     st.header("これまでの記録")
     st.dataframe(df)
+
