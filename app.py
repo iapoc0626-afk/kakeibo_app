@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
+import io  # ← 追加（Excelバッファ用）
 
 # ---- 簡易パスワード設定 ----
 PASSWORD = "0626"  # 好きなパスワードに変更
@@ -77,9 +78,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
- # --- 直近1週間の記録を表示（追加部分） ---
+    # --- 直近1週間の記録を表示 ---
     if not df.empty:
-        # 日付列をdatetime型に変換
         df['日付'] = pd.to_datetime(df['日付'])
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[df['日付'] >= pd.Timestamp(one_week_ago)]
@@ -89,16 +89,15 @@ else:
     else:
         st.info("まだ記録がありません。")
 
- # --- Excel ダウンロードボタン ---
+    # --- Excel ダウンロードボタン ---
     if not df.empty:
-        excel_buffer = io.BytesIO()  # 追加部分
-        df.to_excel(excel_buffer, index=False)  # 追加部分
-        excel_buffer.seek(0)  # 追加部分
-        st.download_button(  # 追加部分
+        excel_buffer = io.BytesIO()  
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:  
+            df.to_excel(writer, index=False)
+        excel_buffer.seek(0)
+        st.download_button(
             label="Excel をダウンロード",
             data=excel_buffer,
             file_name="kakeibo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
-
