@@ -58,84 +58,72 @@ else:
         # 日付列を datetime 型に変換
         df['日付'] = pd.to_datetime(df['日付'], errors='coerce')
         df = df[df['日付'].notna()]
+        df['日付'] = df['日付'].dt.date  # 日付のみ
 
-        # 直近1週間のデータのみ
+        # 比較用の日付
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        df['日付'] = df['日付'].dt.date
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
 
-        if not df_last_week.empty:
-            # 行番号1スタート
-            df_last_week.index = df_last_week.index + 1
-            df_last_week.index.name = "No"
+        # 行番号1スタート
+        df_last_week.index = df_last_week.index + 1
+        df_last_week.index.name = "No"
 
-            # AgGrid設定
-            gb = GridOptionsBuilder.from_dataframe(df_last_week)
-            gb.configure_default_column(editable=True)
+        # AgGrid設定
+        gb = GridOptionsBuilder.from_dataframe(df_last_week)
+        gb.configure_default_column(editable=True)
 
-            # 日付列
-            gb.configure_column(
-                "日付",
-                editable=True,
-                cellEditor='agDatePicker'
-            )
+        # 日付列の表示形式を yyyy/MM/dd に変更
+        gb.configure_column(
+            "日付",
+            editable=True,
+            cellEditor='agDatePicker',
+            valueFormatter="(params.value) ? new Date(params.value).toLocaleDateString('ja-JP') : ''"
+        )
 
-            # タイプ列
-            gb.configure_column(
-                "タイプ",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values":["支出","収入"]}
-            )
+        gb.configure_column(
+            "タイプ",
+            editable=True,
+            cellEditor='agSelectCellEditor',
+            cellEditorParams={"values":["支出","収入"]}
+        )
+        gb.configure_column(
+            "用途",
+            editable=True,
+            cellEditor='agSelectCellEditor',
+            cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]}
+        )
+        grid_options = gb.build()
 
-            # 用途列
-            gb.configure_column(
-                "用途",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]}
-            )
+        grid_response = AgGrid(
+            df_last_week,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.VALUE_CHANGED,
+            fit_columns_on_grid_load=True,
+            enable_enterprise_modules=False
+        )
 
-            # 金額列（カンマなし、数値のまま）
-            gb.configure_column(
-                "金額",
-                editable=True
-            )
+        edited_df = pd.DataFrame(grid_response['data'])
+        edited_df.index = df_last_week.index  # 元の番号に合わせる
 
-            grid_options = gb.build()
-
-            grid_response = AgGrid(
-                df_last_week,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.VALUE_CHANGED,
-                fit_columns_on_grid_load=True,
-                enable_enterprise_modules=False
-            )
-
-            edited_df = pd.DataFrame(grid_response['data'])
-            edited_df.index = df_last_week.index  # 元の番号に合わせる
-
-            if st.button("更新"):
-                # 元のdfの対応行を更新
-                last_week_indices = df[df['日付'] >= one_week_ago].index
-                for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[df_last_week.index[idx]]
-                with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
-                    df.to_excel(writer, index=False)
-                st.success("更新しました！")
-
-            # Excelダウンロード
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        if st.button("更新"):
+            # 元のdfの対応行を更新
+            last_week_indices = df[df['日付'] >= one_week_ago].index
+            for idx, original_idx in enumerate(last_week_indices):
+                df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[df_last_week.index[idx]]
+            with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
-            excel_buffer.seek(0)
-            st.download_button(
-                label="Excel をダウンロード",
-                data=excel_buffer,
-                file_name="kakeibo.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.info("直近1週間の記録はありません。")
+            st.success("更新しました！")
+
+        # Excelダウンロード
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False)
+        excel_buffer.seek(0)
+        st.download_button(
+            label="Excel をダウンロード",
+            data=excel_buffer,
+            file_name="kakeibo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     else:
         st.info("まだ記録がありません。")
