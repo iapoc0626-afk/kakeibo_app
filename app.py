@@ -52,6 +52,7 @@ else:
         df = pd.concat([df, new_data], ignore_index=True)
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
+        st.rerun()
 
     # --- 表示と編集・削除機能 ---
     st.header("📊 直近1週間の記録（編集・削除可能）")
@@ -138,6 +139,7 @@ else:
                         df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[display_df.index[idx], ["日付", "タイプ", "種類", "金額"]]
                     df.to_excel(FILE_NAME, index=False)
                     st.success("更新しました！")
+                    st.rerun()
 
             # 削除確認ダイアログ
             if st.session_state.get("confirm_delete", False):
@@ -151,9 +153,11 @@ else:
                         df.reset_index(drop=True, inplace=True)
                         df.to_excel(FILE_NAME, index=False)
                         st.success(f"{len(to_delete)} 件の記録を削除しました。")
+                        st.session_state["confirm_delete"] = False
+                        st.rerun()
                     else:
                         st.info("削除対象が選択されていません。")
-                    st.session_state["confirm_delete"] = False
+                        st.session_state["confirm_delete"] = False
                 elif confirm == "いいえ":
                     st.info("削除をキャンセルしました。")
                     st.session_state["confirm_delete"] = False
