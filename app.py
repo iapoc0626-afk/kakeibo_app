@@ -101,3 +101,44 @@ else:
             file_name="kakeibo.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+# --- 行選択用 ---
+    st.subheader("✏️ 編集・削除")
+    if not df_last_week.empty:
+        # 選択肢のラベルを作成
+        options = [f"{row['日付'].date()} | {row['タイプ']} | {row['用途']} | {row['金額']}" 
+                   for idx, row in df_last_week.iterrows()]
+        selected_idx = st.selectbox("編集/削除する行を選択", range(len(options)), format_func=lambda x: options[x])
+
+        # 選択行データ
+        selected_row = df_last_week.iloc[selected_idx]
+
+        # 編集フォーム
+        with st.form("edit_form"):
+            edit_date = st.date_input("日付", selected_row['日付'].date())
+            edit_type = st.radio("タイプ", ["支出", "収入"], index=0 if selected_row['タイプ']=="支出" else 1)
+            edit_usage_list = ["食費", "交通費", "日用品費", "娯楽費", "美容費", "交際費", "医療費", "その他"] if edit_type=="支出" else ["給与", "その他"]
+            edit_usage = st.selectbox("用途", edit_usage_list, index=edit_usage_list.index(selected_row['用途']))
+            edit_amount = st.number_input("金額", value=int(abs(selected_row['金額'])), step=100, format="%d")
+            if edit_type=="支出":
+                edit_amount = -abs(edit_amount)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                delete_btn = st.form_submit_button("削除")
+            with col2:
+                update_btn = st.form_submit_button("更新")
+
+            # --- 削除処理 ---
+            if delete_btn:
+                df.drop(df_last_week.index[selected_idx], inplace=True)
+                df.to_excel(FILE_NAME, index=False)
+                st.success("削除しました！")
+                st.experimental_rerun()  # ページをリロードして反映
+
+            # --- 更新処理 ---
+            if update_btn:
+                df.loc[df_last_week.index[selected_idx], ['日付', 'タイプ', '用途', '金額']] = [edit_date, edit_type, edit_usage, edit_amount]
+                df.to_excel(FILE_NAME, index=False)
+                st.success("更新しました！")
+                st.experimental_rerun()  # ページをリロードして反映
