@@ -70,8 +70,6 @@ else:
             df_last_week.index.name = "No"
 
             display_df = df_last_week[['日付','種類','金額']].copy()
-            display_df['日付'] = display_df['日付'].dt.date
-
 
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
@@ -138,5 +136,6 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
+
 
 
