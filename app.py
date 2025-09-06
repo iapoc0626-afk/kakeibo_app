@@ -5,7 +5,7 @@ import os
 import io
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# ---- 簡易パスワード設定 ----
+# ---- パスワード認証 ----
 PASSWORD = "0626"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -35,7 +35,6 @@ else:
     st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
     st.markdown("<h1 style='color:#1E90FF;'>📒 家計簿アプリ</h1>", unsafe_allow_html=True)
 
-    # 種類の選択肢
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
 
     # 入力エリア
@@ -45,7 +44,6 @@ else:
     kind = st.selectbox("種類", categories)
     amount = st.number_input("金額", step=100, format="%d")
 
-    # 支出は金額を負にする
     if type_ == "支出":
         amount = -abs(amount)
 
@@ -56,12 +54,12 @@ else:
             df.to_excel(writer, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（編集可能） ---
-    st.header("📊 直近1週間の記録（編集可能）")
+    # --- 直近1週間の表（編集・削除可能） ---
+    st.header("📊 直近1週間の記録（編集・削除可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
-        df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")  # ← 文字列化
+        df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
@@ -71,6 +69,7 @@ else:
             df_last_week.index.name = "No"
 
             display_df = df_last_week[["日付", "タイプ", "種類", "金額"]].copy()
+            display_df["削除"] = False  # チェックボックス列追加
 
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
@@ -111,6 +110,12 @@ else:
 
             gb.configure_column("金額", editable=True)
 
+            gb.configure_column(
+                "削除",
+                editable=True,
+                cellEditor='agCheckboxCellEditor'
+            )
+
             grid_options = gb.build()
 
             grid_response = AgGrid(
@@ -125,6 +130,7 @@ else:
             edited_df = pd.DataFrame(grid_response["data"])
             edited_df.index = display_df.index
 
+            # 更新ボタン
             if st.button("更新"):
                 last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
@@ -133,6 +139,25 @@ else:
                     df.to_excel(writer, index=False)
                 st.success("更新しました！")
 
+            # 削除ボタン
+            if st.button("削除"):
+                to_delete = edited_df[edited_df["削除"] == True]
+                if not to_delete.empty:
+                    for _, row in to_delete.iterrows():
+                        mask = (
+                            (df["日付"] == row["日付"]) &
+                            (df["タイプ"] == row["タイプ"]) &
+                            (df["種類"] == row["種類"]) &
+                            (df["金額"] == row["金額"])
+                        )
+                        df = df[~mask]
+                    with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
+                        df.to_excel(writer, index=False)
+                    st.success(f"{len(to_delete)} 件の記録を削除しました。")
+                else:
+                    st.info("削除対象が選択されていません。")
+
+            # Excel ダウンロード（全記録）
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
