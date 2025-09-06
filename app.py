@@ -89,5 +89,16 @@ else:
     else:
         st.info("まだ記録がありません。")
 
+ # --- Excel ダウンロードボタン ---
+    if not df.empty:
+        excel_buffer = io.BytesIO()  # 追加部分
+        df.to_excel(excel_buffer, index=False)  # 追加部分
+        excel_buffer.seek(0)  # 追加部分
+        st.download_button(  # 追加部分
+            label="Excel をダウンロード",
+            data=excel_buffer,
+            file_name="kakeibo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
 
