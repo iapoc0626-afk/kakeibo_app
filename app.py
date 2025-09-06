@@ -42,9 +42,9 @@ else:
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=100, format="%d")
+    amount = st.number_input("金額", step=1, format="%d")
 
-    # 支出は金額を負にする（任意でラジオ追加も可能）
+    # 支出は金額を負にする
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     if type_ == "支出":
         amount = -abs(amount)
@@ -59,28 +59,22 @@ else:
     # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        # 日付列を datetime 型に変換
         df['日付'] = pd.to_datetime(df['日付'], errors='coerce')
         df = df[df['日付'].notna()]
 
-        # 直近1週間のデータのみ
         one_week_ago = pd.Timestamp(datetime.date.today() - datetime.timedelta(days=7))
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
 
         if not df_last_week.empty:
-            # 行番号1スタート
             df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
-           # 表に表示する列
             display_df = df_last_week[['日付','種類','金額']].copy()
-            display_df['日付'] = pd.to_datetime(display_df['日付'], errors='coerce')
+            display_df['日付'] = display_df['日付'].dt.date  # ← これがカレンダー編集を可能にする
 
-            # AgGrid設定
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
-            # 日付列（YYYY/MM/DD形式）
             gb.configure_column(
                 "日付",
                 editable=True,
@@ -99,7 +93,6 @@ else:
                 """
             )
 
-            # 種類列
             gb.configure_column(
                 "種類",
                 editable=True,
@@ -107,7 +100,6 @@ else:
                 cellEditorParams={"values": categories}
             )
 
-            # 金額列
             gb.configure_column("金額", editable=True)
 
             grid_options = gb.build()
@@ -121,10 +113,9 @@ else:
             )
 
             edited_df = pd.DataFrame(grid_response['data'])
-            edited_df.index = display_df.index  # 元の番号に合わせる
+            edited_df.index = display_df.index
 
             if st.button("更新"):
-                # 元のdfの対応行を更新
                 last_week_indices = df[df['日付'] >= one_week_ago].index
                 for idx, original_idx in enumerate(last_week_indices):
                     df.loc[original_idx, ['日付','種類','金額']] = edited_df.loc[display_df.index[idx]]
@@ -132,7 +123,6 @@ else:
                     df.to_excel(writer, index=False)
                 st.success("更新しました！")
 
-            # Excelダウンロード
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
@@ -147,6 +137,3 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
-
-
-
