@@ -59,6 +59,11 @@ else:
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
 
+        # 行番号1スタート
+        df_last_week.index = df_last_week.index + 1
+        df_last_week.index.name = "No"
+
+        # AgGrid設定
         gb = GridOptionsBuilder.from_dataframe(df_last_week)
         gb.configure_default_column(editable=True)
         gb.configure_column("日付", type=["dateColumnFilter","customDateTimeFormat"], editable=True, cellEditor='agDatePicker')
@@ -75,11 +80,13 @@ else:
         )
 
         edited_df = pd.DataFrame(grid_response['data'])
+        edited_df.index = df_last_week.index  # 元の番号に合わせる
 
         if st.button("更新"):
             # 元のdfの対応行を更新
-            for idx, original_idx in enumerate(df[df['日付'] >= one_week_ago].index):
-                df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[idx]
+            last_week_indices = df[df['日付'] >= one_week_ago].index
+            for idx, original_idx in enumerate(last_week_indices):
+                df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[df_last_week.index[idx]]
             with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
             st.success("更新しました！")
