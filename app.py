@@ -62,7 +62,9 @@ else:
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy()
-        df_last_week.reset_index(inplace=True)  # preserve original index for deletion
+
+        # 元の df のインデックスを保持
+        df_last_week.reset_index(inplace=True)  # index列が元のdfのインデックス
 
         if not df_last_week.empty:
             df_last_week.index = df_last_week.index + 1
