@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
-import io  # Excelバッファ用
+import io
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # ---- 簡易パスワード設定 ----
 PASSWORD = "0626"
@@ -26,5 +27,3 @@ else:
         os.makedirs(save_dir)
 
     # Excel読み込み
-    if os.path.exists(FILE_NAME):
-        df = pd.read_excel(FILE_NAME)
