@@ -79,4 +79,13 @@ else:
     # 入力済みデータ表示
     st.header("これまでの記録")
     st.dataframe(df)
+    # 直近1週間のデータだけ抽出
+now = datetime.now()
+one_week_ago = now - timedelta(days=7)
+df_last_week = df[pd.to_datetime(df['timestamp']) >= one_week_ago]
+
+print("=== 直近1週間のデータ ===")
+print(df_last_week)
+
+
 
