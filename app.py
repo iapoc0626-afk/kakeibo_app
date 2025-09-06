@@ -82,14 +82,15 @@ else:
                 valueFormatter="""
                 function(params) {
                     try {
-                        let d = new Date(params.value);
+                        let raw = params.value;
+                        let d = new Date(raw);
                         if (isNaN(d)) {
-                            let match = params.value.match(/\\w{3} \\w{3} \\d{2} \\d{4}/);
+                            let match = raw.match(/\\w{3} \\w{3} \\d{2} \\d{4} \\d{2}:\\d{2}:\\d{2}/);
                             if (match) {
                                 d = new Date(match[0]);
                             }
                         }
-                        if (isNaN(d)) return params.value;
+                        if (isNaN(d)) return raw;
                         let yyyy = d.getFullYear();
                         let mm = ('0' + (d.getMonth()+1)).slice(-2);
                         let dd = ('0' + d.getDate()).slice(-2);
