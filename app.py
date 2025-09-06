@@ -70,7 +70,7 @@ else:
             df_last_week.index.name = "No"
 
             display_df = df_last_week[['日付','種類','金額']].copy()
-        
+
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
@@ -78,6 +78,7 @@ else:
                 "日付",
                 editable=True,
                 cellEditor='agDatePicker',
+                cellEditorParams={"params": {"dateFormat": "yyyy/MM/dd"}},
                 valueFormatter="""
                 function(params) {
                     if(params.value){
@@ -136,4 +137,3 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
-
