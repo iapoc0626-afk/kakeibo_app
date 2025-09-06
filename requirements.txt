@@ -4,5 +4,6 @@ pillow>=10.0
 pandas
 openpyxl
 streamlit
+streamlit-aggrid
 
 
