@@ -30,7 +30,7 @@ else:
     if os.path.exists(FILE_NAME):
         df = pd.read_excel(FILE_NAME)
     else:
-        df = pd.DataFrame(columns=["日付", "タイプ", "用途", "金額"])
+        df = pd.DataFrame(columns=["日付", "タイプ", "種類", "金額"])
 
     st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
     st.markdown("<h1 style='color:#1E90FF;'>📒 家計簿アプリ</h1>", unsafe_allow_html=True)
@@ -40,13 +40,13 @@ else:
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他"] if type_=="支出" else ["給与","その他"]
-    usage = st.selectbox("用途", categories)
+    kind = st.selectbox("種類", categories)
     amount = st.number_input("金額", step=100, format="%d")
     if type_=="支出":
         amount = -abs(amount)
 
     if st.button("保存"):
-        new_data = pd.DataFrame([[date,type_,usage,amount]], columns=["日付","タイプ","用途","金額"])
+        new_data = pd.DataFrame([[date,type_,kind,amount]], columns=["日付","タイプ","種類","金額"])
         df = pd.concat([df,new_data], ignore_index=True)
         with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
@@ -58,72 +58,95 @@ else:
         # 日付列を datetime 型に変換
         df['日付'] = pd.to_datetime(df['日付'], errors='coerce')
         df = df[df['日付'].notna()]
-        df['日付'] = df['日付'].dt.date  # 日付のみ
 
-        # 比較用の日付
-        one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+        # 直近1週間のデータのみ
+        one_week_ago = pd.Timestamp(datetime.date.today() - datetime.timedelta(days=7))
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
 
-        # 行番号1スタート
-        df_last_week.index = df_last_week.index + 1
-        df_last_week.index.name = "No"
+        if not df_last_week.empty:
+            # 行番号1スタート
+            df_last_week.index = df_last_week.index + 1
+            df_last_week.index.name = "No"
 
-        # AgGrid設定
-        gb = GridOptionsBuilder.from_dataframe(df_last_week)
-        gb.configure_default_column(editable=True)
+            # 表に表示する列を種類列に統一
+            display_df = df_last_week[['日付','タイプ','種類','金額']]
 
-        # 日付列の表示形式を yyyy/MM/dd に変更
-        gb.configure_column(
-            "日付",
-            editable=True,
-            cellEditor='agDatePicker',
-            valueFormatter="(params.value) ? new Date(params.value).toLocaleDateString('ja-JP') : ''"
-        )
+            # AgGrid設定
+            gb = GridOptionsBuilder.from_dataframe(display_df)
+            gb.configure_default_column(editable=True)
 
-        gb.configure_column(
-            "タイプ",
-            editable=True,
-            cellEditor='agSelectCellEditor',
-            cellEditorParams={"values":["支出","収入"]}
-        )
-        gb.configure_column(
-            "用途",
-            editable=True,
-            cellEditor='agSelectCellEditor',
-            cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]}
-        )
-        grid_options = gb.build()
+            # 日付列（YYYY/MM/DD形式）
+            gb.configure_column(
+                "日付",
+                editable=True,
+                cellEditor='agDatePicker',
+                valueFormatter="""
+                function(params) {
+                    if(params.value){
+                        let d = new Date(params.value);
+                        let yyyy = d.getFullYear();
+                        let mm = ('0' + (d.getMonth()+1)).slice(-2);
+                        let dd = ('0' + d.getDate()).slice(-2);
+                        return yyyy + '/' + mm + '/' + dd;
+                    }
+                    return '';
+                }
+                """
+            )
 
-        grid_response = AgGrid(
-            df_last_week,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            fit_columns_on_grid_load=True,
-            enable_enterprise_modules=False
-        )
+            # タイプ列
+            gb.configure_column(
+                "タイプ",
+                editable=True,
+                cellEditor='agSelectCellEditor',
+                cellEditorParams={"values":["支出","収入"]}
+            )
 
-        edited_df = pd.DataFrame(grid_response['data'])
-        edited_df.index = df_last_week.index  # 元の番号に合わせる
+            # 種類列
+            gb.configure_column(
+                "種類",
+                editable=True,
+                cellEditor='agSelectCellEditor',
+                cellEditorParams={"values":categories}
+            )
 
-        if st.button("更新"):
-            # 元のdfの対応行を更新
-            last_week_indices = df[df['日付'] >= one_week_ago].index
-            for idx, original_idx in enumerate(last_week_indices):
-                df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[df_last_week.index[idx]]
-            with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
+            # 金額列
+            gb.configure_column("金額", editable=True)
+
+            grid_options = gb.build()
+
+            grid_response = AgGrid(
+                display_df,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.VALUE_CHANGED,
+                fit_columns_on_grid_load=True,
+                enable_enterprise_modules=False
+            )
+
+            edited_df = pd.DataFrame(grid_response['data'])
+            edited_df.index = display_df.index  # 元の番号に合わせる
+
+            if st.button("更新"):
+                # 元のdfの対応行を更新
+                last_week_indices = df[df['日付'] >= one_week_ago].index
+                for idx, original_idx in enumerate(last_week_indices):
+                    df.loc[original_idx, ['日付','タイプ','種類','金額']] = edited_df.loc[display_df.index[idx]]
+                with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
+                    df.to_excel(writer, index=False)
+                st.success("更新しました！")
+
+            # Excelダウンロード
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
-            st.success("更新しました！")
-
-        # Excelダウンロード
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False)
-        excel_buffer.seek(0)
-        st.download_button(
-            label="Excel をダウンロード",
-            data=excel_buffer,
-            file_name="kakeibo.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            excel_buffer.seek(0)
+            st.download_button(
+                label="Excel をダウンロード",
+                data=excel_buffer,
+                file_name="kakeibo.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
