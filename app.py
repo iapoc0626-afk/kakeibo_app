@@ -74,6 +74,7 @@ else:
 
            # 表に表示する列
             display_df = df_last_week[['日付','種類','金額']].copy()
+            display_df['日付'] = pd.to_datetime(display_df['日付'], errors='coerce')
 
             # AgGrid設定
             gb = GridOptionsBuilder.from_dataframe(display_df)
@@ -146,5 +147,6 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
+
 
 
