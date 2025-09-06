@@ -30,7 +30,7 @@ else:
     if os.path.exists(FILE_NAME):
         df = pd.read_excel(FILE_NAME)
     else:
-        df = pd.DataFrame(columns=["日付", "タイプ", "種類", "金額"])
+        df = pd.DataFrame(columns=["日付", "タイプ", "用途", "金額"])
 
     st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
     st.markdown("<h1 style='color:#1E90FF;'>📒 家計簿アプリ</h1>", unsafe_allow_html=True)
@@ -40,13 +40,13 @@ else:
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他"] if type_=="支出" else ["給与","その他"]
-    usage = st.selectbox("種類", categories)
+    usage = st.selectbox("用途", categories)
     amount = st.number_input("金額", step=100, format="%d")
     if type_=="支出":
         amount = -abs(amount)
 
     if st.button("保存"):
-        new_data = pd.DataFrame([[date,type_,usage,amount]], columns=["日付","タイプ","種類","金額"])
+        new_data = pd.DataFrame([[date,type_,usage,amount]], columns=["日付","タイプ","用途","金額"])
         df = pd.concat([df,new_data], ignore_index=True)
         with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
@@ -73,12 +73,12 @@ else:
             gb = GridOptionsBuilder.from_dataframe(df_last_week)
             gb.configure_default_column(editable=True)
 
-            # 日付列
+            # 日付列（YYYY/MM/DD形式表示）
             gb.configure_column(
                 "日付",
                 editable=True,
                 cellEditor='agDatePicker',
-                valueFormatter="(params.value) ? new Date(params.value).toLocaleDateString('ja-JP') : ''"
+                valueFormatter="(params.value) ? new Date(params.value).toLocaleDateString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit'}) : ''"
             )
 
             # タイプ列
@@ -89,19 +89,18 @@ else:
                 cellEditorParams={"values":["支出","収入"]}
             )
 
-            # 種類列
+            # 用途列
             gb.configure_column(
-                "種類",
+                "用途",
                 editable=True,
                 cellEditor='agSelectCellEditor',
                 cellEditorParams={"values":["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","その他","給与","その他"]}
             )
 
-            # 金額列（カンマ区切り表示）
+            # 金額列（カンマなし）
             gb.configure_column(
                 "金額",
-                editable=True,
-                valueFormatter="(params.value !== undefined) ? params.value.toLocaleString() : ''"
+                editable=True
             )
 
             grid_options = gb.build()
@@ -121,7 +120,7 @@ else:
                 # 元のdfの対応行を更新
                 last_week_indices = df[df['日付'] >= one_week_ago].index
                 for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ['日付','タイプ','種類','金額']] = edited_df.loc[df_last_week.index[idx]]
+                    df.loc[original_idx, ['日付','タイプ','用途','金額']] = edited_df.loc[df_last_week.index[idx]]
                 with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False)
                 st.success("更新しました！")
@@ -141,5 +140,3 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
-
-
