@@ -36,7 +36,7 @@ else:
 
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
 
-    # 入力エリア
+    # 入力エリア（変更なし）
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
