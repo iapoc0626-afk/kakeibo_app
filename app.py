@@ -20,9 +20,7 @@ if not st.session_state.authenticated:
 else:
     # -------- 家計簿アプリ本体 --------
     # 保存先
-    save_dir = r"C:\Users\iapoc\Desktop"
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    save_dir = "."  # カレントディレクトリ
     FILE_NAME = os.path.join(save_dir, "kakeibo.xlsx")
 
     # Excelファイル読み込み
@@ -87,3 +85,4 @@ else:
         st.dataframe(df_last_week)
     else:
         st.info("まだ記録がありません。")
+
