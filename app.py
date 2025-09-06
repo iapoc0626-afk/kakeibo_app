@@ -55,9 +55,17 @@ else:
     # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        df['日付'] = pd.to_datetime(df['日付']).dt.date
+        # 日付列を datetime 型に変換
+        df['日付'] = pd.to_datetime(df['日付'], errors='coerce').dt.date  # 文字列を日付に変換
+        
+        # 比較用の日付
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+        
+        # 日付列が None になった行は除外
+        df = df[df['日付'].notna()]
+        
         df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
+    
 
         # 行番号1スタート
         df_last_week.index = df_last_week.index + 1
@@ -104,3 +112,4 @@ else:
         )
     else:
         st.info("まだ記録がありません。")
+
