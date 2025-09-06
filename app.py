@@ -72,9 +72,11 @@ else:
             df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
-            # 表に表示する列
-            display_df = df_last_week[['日付','種類','金額']]
+           # 表に表示する列
+            display_df = df_last_week[['日付','種類','金額']].copy()
 
+            # 日付を YYYY/MM/DD 形式に変換
+            display_df['日付'] = display_df['日付'].dt.strftime('%Y/%m/%d')
             # AgGrid設定
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
@@ -146,3 +148,4 @@ else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
+
