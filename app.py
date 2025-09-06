@@ -3,6 +3,7 @@ import pandas as pd
 import datetime
 import os
 import io
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # ---- パスワード認証 ----
 PASSWORD = "0626"
@@ -52,8 +53,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（削除ボタン付き） ---
-    st.header("📊 直近1週間の記録（削除可能）")
+    # --- 直近1週間の表（AgGrid 表形式＋削除ボタン） ---
+    st.header("📊 直近1週間の記録（編集・削除可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
@@ -63,18 +64,86 @@ else:
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
 
         if not df_last_week.empty:
-            for idx, row in df_last_week.iterrows():
-                st.write(f"**No.{idx+1}**")
-                st.write(f"日付: {row['日付']}｜タイプ: {row['タイプ']}｜種類: {row['種類']}｜金額: {row['金額']}")
-                if st.button(f"削除 {idx}"):
-                    st.session_state["delete_target"] = idx
+            df_last_week.index = df_last_week.index + 1
+            df_last_week.index.name = "No"
+
+            gb = GridOptionsBuilder.from_dataframe(df_last_week)
+            gb.configure_default_column(editable=True)
+
+            gb.configure_column(
+                "日付",
+                editable=True,
+                cellEditor='agTextCellEditor',
+                valueFormatter="""
+                function(params) {
+                    try {
+                        let d = new Date(params.value);
+                        if (isNaN(d)) return params.value;
+                        let yyyy = d.getFullYear();
+                        let mm = ('0' + (d.getMonth()+1)).slice(-2);
+                        let dd = ('0' + d.getDate()).slice(-2);
+                        return yyyy + '/' + mm + '/' + dd;
+                    } catch {
+                        return params.value;
+                    }
+                }
+                """
+            )
+
+            gb.configure_column(
+                "タイプ",
+                editable=True,
+                cellEditor='agSelectCellEditor',
+                cellEditorParams={"values": ["支出", "収入"]}
+            )
+
+            gb.configure_column(
+                "種類",
+                editable=True,
+                cellEditor='agSelectCellEditor',
+                cellEditorParams={"values": categories}
+            )
+
+            gb.configure_column("金額", editable=True)
+
+            grid_options = gb.build()
+
+            grid_response = AgGrid(
+                df_last_week,
+                gridOptions=grid_options,
+                update_mode=GridUpdateMode.VALUE_CHANGED,
+                fit_columns_on_grid_load=True,
+                enable_enterprise_modules=False,
+                allow_unsafe_jscode=True
+            )
+
+            edited_df = pd.DataFrame(grid_response["data"])
+            edited_df.index = df_last_week.index
+
+            # 更新ボタン
+            if st.button("更新"):
+                last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
+                for idx, original_idx in enumerate(last_week_indices):
+                    df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
+                df.to_excel(FILE_NAME, index=False)
+                st.success("更新しました！")
+
+            # 各行に削除ボタンを表示
+            st.subheader("🗑️ 行ごとの削除")
+            for idx, row in edited_df.iterrows():
+                col1, col2 = st.columns([6, 1])
+                with col1:
+                    st.write(f"**No.{idx}** 日付: {row['日付']}｜タイプ: {row['タイプ']}｜種類: {row['種類']}｜金額: {row['金額']}")
+                with col2:
+                    if st.button(f"削除 {idx}"):
+                        st.session_state["delete_target"] = idx
 
             # 削除確認ダイアログ
             if "delete_target" in st.session_state:
-                st.warning(f"No.{st.session_state['delete_target']+1} の記録を削除します。よろしいですか？")
+                st.warning(f"No.{st.session_state['delete_target']} の記録を削除します。よろしいですか？")
                 confirm = st.radio("削除確認", ["いいえ", "はい"], horizontal=True)
                 if confirm == "はい":
-                    target_row = df_last_week.loc[st.session_state["delete_target"]]
+                    target_row = edited_df.loc[st.session_state["delete_target"]]
                     mask = (
                         (df["日付"] == target_row["日付"]) &
                         (df["タイプ"] == target_row["タイプ"]) &
