@@ -37,12 +37,12 @@ else:
 
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
 
-    # 入力エリア（変更なし）
+    # 入力エリア
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=100, format="%d")
+    amount = st.number_input("金額", step=1, format="%d")
 
     if type_ == "支出":
         amount = -abs(amount)
@@ -53,8 +53,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（AgGrid 表形式＋削除ボタン） ---
-    st.header("📊 直近1週間の記録（編集・削除可能）")
+    # --- 直近1週間の表（編集のみ） ---
+    st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
@@ -127,36 +127,6 @@ else:
                     df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
-
-            # 各行に削除ボタンを表示
-            st.subheader("🗑️ 行ごとの削除")
-            for idx, row in edited_df.iterrows():
-                col1, col2 = st.columns([6, 1])
-                with col1:
-                    st.write(f"**No.{idx}** 日付: {row['日付']}｜タイプ: {row['タイプ']}｜種類: {row['種類']}｜金額: {row['金額']}")
-                with col2:
-                    if st.button(f"削除 {idx}"):
-                        st.session_state["delete_target"] = idx
-
-            # 削除確認ダイアログ
-            if "delete_target" in st.session_state:
-                st.warning(f"No.{st.session_state['delete_target']} の記録を削除します。よろしいですか？")
-                confirm = st.radio("削除確認", ["いいえ", "はい"], horizontal=True)
-                if confirm == "はい":
-                    target_row = edited_df.loc[st.session_state["delete_target"]]
-                    mask = (
-                        (df["日付"] == target_row["日付"]) &
-                        (df["タイプ"] == target_row["タイプ"]) &
-                        (df["種類"] == target_row["種類"]) &
-                        (df["金額"] == target_row["金額"])
-                    )
-                    df = df[~mask]
-                    df.to_excel(FILE_NAME, index=False)
-                    st.success("削除しました。")
-                    del st.session_state["delete_target"]
-                elif confirm == "いいえ":
-                    st.info("削除をキャンセルしました。")
-                    del st.session_state["delete_target"]
         else:
             st.info("直近1週間の記録はありません。")
     else:
