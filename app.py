@@ -42,7 +42,7 @@ else:
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=100, format="%d")
+    amount = st.number_input("金額", step=1, format="%d")
 
     # 支出は金額を負にする
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
@@ -50,9 +50,8 @@ else:
         amount = -abs(amount)
 
     if st.button("保存"):
-        new_data = pd.DataFrame([[date, kind, amount]], columns=["日付", "種類", "金額"])
+        new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), kind, amount]], columns=["日付", "種類", "金額"])
         df = pd.concat([df, new_data], ignore_index=True)
-        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date  # 時刻除去
         with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
         st.success("保存しました！")
@@ -60,11 +59,12 @@ else:
     # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date
+        df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
+        df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")  # ← 文字列に変換
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        df_last_week = df[df["日付"] >= one_week_ago].copy().reset_index(drop=True)
+        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
 
         if not df_last_week.empty:
             df_last_week.index = df_last_week.index + 1
@@ -78,19 +78,12 @@ else:
             gb.configure_column(
                 "日付",
                 editable=True,
-                cellEditor='agDatePicker',
+                cellEditor='agTextCellEditor',
                 valueFormatter="""
                 function(params) {
                     try {
-                        let raw = params.value;
-                        let d = new Date(raw);
-                        if (isNaN(d)) {
-                            let match = raw.match(/\\w{3} \\w{3} \\d{2} \\d{4} \\d{2}:\\d{2}:\\d{2}/);
-                            if (match) {
-                                d = new Date(match[0]);
-                            }
-                        }
-                        if (isNaN(d)) return raw;
+                        let d = new Date(params.value);
+                        if (isNaN(d)) return params.value;
                         let yyyy = d.getFullYear();
                         let mm = ('0' + (d.getMonth()+1)).slice(-2);
                         let dd = ('0' + d.getDate()).slice(-2);
@@ -126,13 +119,9 @@ else:
             edited_df.index = display_df.index
 
             if st.button("更新"):
-                last_week_indices = df[df["日付"] >= one_week_ago].index
+                last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
-                    try:
-                        edited_date = pd.to_datetime(edited_df.loc[display_df.index[idx], "日付"], errors='coerce').date()
-                    except:
-                        edited_date = df.loc[original_idx, "日付"]
-                    df.loc[original_idx, "日付"] = edited_date
+                    df.loc[original_idx, "日付"] = edited_df.loc[display_df.index[idx], "日付"]
                     df.loc[original_idx, ["種類", "金額"]] = edited_df.loc[display_df.index[idx], ["種類", "金額"]]
                 with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False)
