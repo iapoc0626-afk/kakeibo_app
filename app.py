@@ -74,10 +74,10 @@ else:
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
-            # 日付列の表示を YYYY/MM/DD に整形（編集は不可）
             gb.configure_column(
                 "日付",
-                editable=False,
+                editable=True,
+                cellEditor='agTextCellEditor',  # 編集可能にする（カレンダーは環境依存）
                 valueFormatter="""
                 function(params) {
                     if(params.value){
@@ -118,6 +118,12 @@ else:
             if st.button("更新"):
                 last_week_indices = df[df['日付'] >= one_week_ago].index
                 for idx, original_idx in enumerate(last_week_indices):
+                    # 日付を datetime に戻す（必要なら）
+                    try:
+                        edited_date = pd.to_datetime(edited_df.loc[display_df.index[idx], '日付'], errors='coerce')
+                    except:
+                        edited_date = df.loc[original_idx, '日付']
+                    df.loc[original_idx, '日付'] = edited_date
                     df.loc[original_idx, ['種類','金額']] = edited_df.loc[display_df.index[idx], ['種類','金額']]
                 with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False)
