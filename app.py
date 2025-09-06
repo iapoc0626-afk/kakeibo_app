@@ -71,6 +71,9 @@ else:
 
             display_df = df_last_week[['日付','種類','金額']].copy()
 
+            # 🔧 カレンダー選択を有効にするために datetime.date 型に変換
+            display_df['日付'] = display_df['日付'].apply(lambda x: x.date() if pd.notnull(x) else None)
+
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
