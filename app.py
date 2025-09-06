@@ -61,7 +61,8 @@ else:
         df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
+        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy()
+        df_last_week.reset_index(inplace=True)  # preserve original index for deletion
 
         if not df_last_week.empty:
             df_last_week.index = df_last_week.index + 1
@@ -127,51 +128,4 @@ else:
             col1, col2 = st.columns([1, 5])
             with col1:
                 if st.button("削除"):
-                    st.session_state["confirm_delete"] = True
-            with col2:
-                if st.button("更新"):
-                    last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-                    for idx, original_idx in enumerate(last_week_indices):
-                        df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[display_df.index[idx], ["日付", "タイプ", "種類", "金額"]]
-                    df.to_excel(FILE_NAME, index=False)
-                    st.success("更新しました！")
-
-            # 削除確認ダイアログ
-            if st.session_state.get("confirm_delete", False):
-                st.warning("チェックされた行を削除します。よろしいですか？")
-                confirm = st.radio("削除確認", ["いいえ", "はい"], horizontal=True)
-                if confirm == "はい":
-                    to_delete = edited_df[edited_df["削除"] == True]
-                    if not to_delete.empty:
-                        for _, row in to_delete.iterrows():
-                            mask = (
-                                (df["日付"] == row["日付"]) &
-                                (df["タイプ"] == row["タイプ"]) &
-                                (df["種類"] == row["種類"]) &
-                                (df["金額"] == row["金額"])
-                            )
-                            df = df[~mask]
-                        df.to_excel(FILE_NAME, index=False)
-                        st.success(f"{len(to_delete)} 件の記録を削除しました。")
-                    else:
-                        st.info("削除対象が選択されていません。")
-                    st.session_state["confirm_delete"] = False
-                elif confirm == "いいえ":
-                    st.info("削除をキャンセルしました。")
-                    st.session_state["confirm_delete"] = False
-        else:
-            st.info("直近1週間の記録はありません。")
-    else:
-        st.info("まだ記録がありません。")
-
-    # Excel ダウンロード（全記録）
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-    excel_buffer.seek(0)
-    st.download_button(
-        label="Excel をダウンロード",
-        data=excel_buffer,
-        file_name="kakeibo.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+                    st.session_state
