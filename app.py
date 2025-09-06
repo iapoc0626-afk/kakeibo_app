@@ -78,11 +78,16 @@ else:
                 "日付",
                 editable=True,
                 cellEditor='agDatePicker',
-                cellEditorParams={"params": {"dateFormat": "yyyy/MM/dd"}},
+                cellEditorParams={
+                    "minDate": "2000-01-01",
+                    "maxDate": "2099-12-31",
+                    "dateFormat": "yyyy-MM-dd"
+                },
                 valueFormatter="""
                 function(params) {
                     if(params.value){
                         let d = new Date(params.value);
+                        if (isNaN(d)) return params.value;
                         let yyyy = d.getFullYear();
                         let mm = ('0' + (d.getMonth()+1)).slice(-2);
                         let dd = ('0' + d.getDate()).slice(-2);
