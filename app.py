@@ -52,7 +52,7 @@ else:
     if st.button("保存"):
         new_data = pd.DataFrame([[date, kind, amount]], columns=["日付", "種類", "金額"])
         df = pd.concat([df, new_data], ignore_index=True)
-        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date  # 時刻除去
+        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date
         with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
         st.success("保存しました！")
@@ -60,7 +60,7 @@ else:
     # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date  # 時刻除去
+        df["日付"] = pd.to_datetime(df["日付"], errors='coerce').dt.date
         df = df[df["日付"].notna()]
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
@@ -81,15 +81,22 @@ else:
                 cellEditor='agTextCellEditor',
                 valueFormatter="""
                 function(params) {
-                    if(params.value){
+                    try {
                         let d = new Date(params.value);
+                        if (isNaN(d)) {
+                            let match = params.value.match(/\\w{3} \\w{3} \\d{2} \\d{4}/);
+                            if (match) {
+                                d = new Date(match[0]);
+                            }
+                        }
                         if (isNaN(d)) return params.value;
                         let yyyy = d.getFullYear();
                         let mm = ('0' + (d.getMonth()+1)).slice(-2);
                         let dd = ('0' + d.getDate()).slice(-2);
                         return yyyy + '/' + mm + '/' + dd;
+                    } catch {
+                        return params.value;
                     }
-                    return '';
                 }
                 """
             )
