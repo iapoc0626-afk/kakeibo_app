@@ -50,8 +50,8 @@ else:
         amount = -abs(amount)
 
     if st.button("保存"):
-        new_data = pd.DataFrame([[date, type_, kind, amount]], columns=["日付", "タイプ", "種類", "金額"])
-        df = pd.concat([df,new_data], ignore_index=True)
+        new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]], columns=["日付", "タイプ", "種類", "金額"])
+        df = pd.concat([df, new_data], ignore_index=True)
         with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
         st.success("保存しました！")
@@ -59,54 +59,49 @@ else:
     # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
-        # 日付列を datetime 型に変換
-        df['日付'] = pd.to_datetime(df['日付'], errors='coerce')
-        df = df[df['日付'].notna()]
+        df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
+        df = df[df["日付"].notna()]
+        df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")  # ← 文字列化
 
-        # 直近1週間のデータのみ
-        one_week_ago = pd.Timestamp(datetime.date.today() - datetime.timedelta(days=7))
-        df_last_week = df[df['日付'] >= one_week_ago].copy().reset_index(drop=True)
+        one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
 
         if not df_last_week.empty:
-            # 行番号1スタート
             df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
-            # 表に表示する列
-            display_df = df_last_week[['日付','タイプ','種類','金額']]
+            display_df = df_last_week[["日付", "タイプ", "種類", "金額"]].copy()
 
-            # AgGrid設定
             gb = GridOptionsBuilder.from_dataframe(display_df)
             gb.configure_default_column(editable=True)
 
-            # 日付列（YYYY/MM/DD形式）
             gb.configure_column(
                 "日付",
                 editable=True,
-                cellEditor='agDatePicker',
+                cellEditor='agTextCellEditor',
                 valueFormatter="""
                 function(params) {
-                    if(params.value){
+                    try {
                         let d = new Date(params.value);
+                        if (isNaN(d)) return params.value;
                         let yyyy = d.getFullYear();
                         let mm = ('0' + (d.getMonth()+1)).slice(-2);
                         let dd = ('0' + d.getDate()).slice(-2);
                         return yyyy + '/' + mm + '/' + dd;
+                    } catch {
+                        return params.value;
                     }
-                    return '';
                 }
                 """
             )
 
-            # タイプ列
             gb.configure_column(
                 "タイプ",
                 editable=True,
                 cellEditor='agSelectCellEditor',
-                cellEditorParams={"values": ["支出","収入"]}
+                cellEditorParams={"values": ["支出", "収入"]}
             )
 
-            # 種類列
             gb.configure_column(
                 "種類",
                 editable=True,
@@ -114,7 +109,6 @@ else:
                 cellEditorParams={"values": categories}
             )
 
-            # 金額列
             gb.configure_column("金額", editable=True)
 
             grid_options = gb.build()
@@ -124,22 +118,21 @@ else:
                 gridOptions=grid_options,
                 update_mode=GridUpdateMode.VALUE_CHANGED,
                 fit_columns_on_grid_load=True,
-                enable_enterprise_modules=False
+                enable_enterprise_modules=False,
+                allow_unsafe_jscode=True
             )
 
-            edited_df = pd.DataFrame(grid_response['data'])
-            edited_df.index = display_df.index  # 元の番号に合わせる
+            edited_df = pd.DataFrame(grid_response["data"])
+            edited_df.index = display_df.index
 
             if st.button("更新"):
-                # 元のdfの対応行を更新
-                last_week_indices = df[df['日付'] >= one_week_ago].index
+                last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ['日付','タイプ','種類','金額']] = edited_df.loc[display_df.index[idx]]
+                    df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[display_df.index[idx], ["日付", "タイプ", "種類", "金額"]]
                 with pd.ExcelWriter(FILE_NAME, engine="openpyxl") as writer:
                     df.to_excel(writer, index=False)
                 st.success("更新しました！")
 
-            # Excelダウンロード
             excel_buffer = io.BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                 df.to_excel(writer, index=False)
