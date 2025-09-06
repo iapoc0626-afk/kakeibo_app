@@ -76,16 +76,24 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # 入力済みデータ表示
-    st.header("これまでの記録")
-    st.dataframe(df)
-    # 直近1週間のデータだけ抽出
+# 直近1週間のデータのみ表示 
+from datetime import datetime, timedelta
+import pandas as pd
+
+# timestamp列をdatetime型に変換しておく
+df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+# 現在時刻と1週間前の時刻を計算
 now = datetime.now()
 one_week_ago = now - timedelta(days=7)
-df_last_week = df[pd.to_datetime(df['timestamp']) >= one_week_ago]
 
-print("=== 直近1週間のデータ ===")
+# 直近1週間のデータだけ抽出
+df_last_week = df[df['timestamp'] >= one_week_ago]
+
+# 表示
+print("=== 直近1週間の記録 ===")
 print(df_last_week)
+
 
 
 
