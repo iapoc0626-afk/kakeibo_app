@@ -3,7 +3,6 @@ import pandas as pd
 import datetime
 import os
 import io
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # ---- 簡易パスワード設定 ----
 PASSWORD = "0626"
@@ -26,4 +25,14 @@ else:
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    # Excel読み込み
+    # Excelファイル読み込み
+    if os.path.exists(FILE_NAME):
+        df = pd.read_excel(FILE_NAME)
+    else:
+        df = pd.DataFrame(columns=["日付", "タイプ", "用途", "金額"])
+
+    st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
+
+    st.markdown("""
+    <style>
+    .stButton>button {ba
