@@ -22,6 +22,9 @@ else:
     # 保存先
     save_dir = r"C:\Users\iapoc\OneDrive\Desktop"
     FILE_NAME = os.path.join(save_dir, "kakeibo.xlsx")
+    
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     # Excelファイル読み込み
     if os.path.exists(FILE_NAME):
@@ -85,5 +88,6 @@ else:
         st.dataframe(df_last_week)
     else:
         st.info("まだ記録がありません。")
+
 
 
