@@ -157,8 +157,9 @@ else:
 
     with open(FILE_NAME, "rb") as f:
         st.download_button(
-            label="Excel をダウンロード（テーブル形式）",
+            label="Excel をダウンロード",
             data=f,
             file_name=download_filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
