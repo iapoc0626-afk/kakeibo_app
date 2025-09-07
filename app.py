@@ -126,7 +126,6 @@ else:
                         df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
-                st.experimental_rerun()
         else:
             st.info("直近1週間の記録はありません。")
     else:
