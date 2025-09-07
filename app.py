@@ -70,14 +70,12 @@ else:
             gb = GridOptionsBuilder.from_dataframe(df_last_week)
             gb.configure_default_column(editable=True)
 
-            # --- 日付をカレンダーで編集可能に ---
+            # 日付カレンダー編集
             gb.configure_column(
                 "日付",
                 editable=True,
                 cellEditor="agDateCellEditor",
-                cellEditorParams={
-                    "useFormatter": True
-                },
+                cellEditorParams={"useFormatter": True},
                 valueFormatter="""
                 function(params) {
                     if (!params.value) return '';
@@ -90,24 +88,21 @@ else:
                 }
                 """
             )
-
             gb.configure_column(
                 "タイプ",
                 editable=True,
                 cellEditor='agSelectCellEditor',
                 cellEditorParams={"values": ["支出", "収入"]}
             )
-
             gb.configure_column(
                 "種類",
                 editable=True,
                 cellEditor='agSelectCellEditor',
                 cellEditorParams={"values": categories}
             )
-
             gb.configure_column("金額", editable=True)
 
-            # --- 行選択用のチェックボックス追加 ---
+            # 行選択用チェックボックス
             gb.configure_selection("multiple", use_checkbox=True)
             grid_options = gb.build()
 
@@ -131,29 +126,21 @@ else:
                     df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
+                st.experimental_rerun()
 
-            # 削除ボタン（空チェックを len() で判定＋削除後に再描画）
+            # 削除ボタン
             if st.button("削除"):
                 if selected_rows is not None and len(selected_rows) > 0:
-                    st.warning(f"{len(selected_rows)} 件の行を削除しますか？")
                     confirm = st.radio("本当に削除しますか？", ["いいえ", "はい"], horizontal=True, key="delete_confirm")
                     if confirm == "はい":
+                        # 選択行の No から df のインデックスを特定
                         delete_nos = [int(row["No"]) for row in selected_rows]
                         last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                         drop_idx = [last_week_indices[no - 1] for no in delete_nos if (no - 1) < len(last_week_indices)]
                         df = df.drop(drop_idx)
                         df.to_excel(FILE_NAME, index=False)
                         st.success("削除しました！")
-
-                        # --- 削除後に df_last_week を再計算して即反映 ---
-                        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
-                        if not df_last_week.empty:
-                            df_last_week.index = df_last_week.index + 1
-                            df_last_week.index.name = "No"
-                            st.dataframe(df_last_week)
-                        else:
-                            st.info("直近1週間の記録はありません。")
-                        st.stop()  # 表示を即更新して処理停止
+                        st.experimental_rerun()
                 else:
                     st.info("削除する行を選択してください。")
         else:
@@ -161,7 +148,7 @@ else:
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（全記録）
+    # Excel ダウンロード
     excel_buffer = io.BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False)
