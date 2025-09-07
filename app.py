@@ -10,10 +10,6 @@ PASSWORD = "0626"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# 非表示行管理（0-index）
-if "hidden_rows" not in st.session_state:
-    st.session_state.hidden_rows = []
-
 if not st.session_state.authenticated:
     st.title("ログイン")
     pwd = st.text_input("パスワードを入力", type="password")
@@ -58,8 +54,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（編集＋非表示可能） ---
-    st.header("📊 直近1週間の記録（編集・非表示可能）")
+    # --- 直近1週間の表（編集のみ） ---
+    st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
@@ -67,10 +63,6 @@ else:
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
-
-        # 非表示行を除外
-        if st.session_state.hidden_rows:
-            df_last_week = df_last_week.drop(index=[i for i in st.session_state.hidden_rows if i < len(df_last_week)]).reset_index(drop=True)
 
         if not df_last_week.empty:
             # AgGrid 用 No 列（表示用）
@@ -112,14 +104,12 @@ else:
             )
             gb.configure_column("金額", editable=True)
 
-            # 行選択用チェックボックス
-            gb.configure_selection("multiple", use_checkbox=True)
             grid_options = gb.build()
 
             grid_response = AgGrid(
                 df_last_week,
                 gridOptions=grid_options,
-                update_mode=GridUpdateMode.VALUE_CHANGED | GridUpdateMode.SELECTION_CHANGED,
+                update_mode=GridUpdateMode.VALUE_CHANGED,
                 fit_columns_on_grid_load=True,
                 enable_enterprise_modules=False,
                 allow_unsafe_jscode=True
@@ -127,7 +117,6 @@ else:
 
             edited_df = pd.DataFrame(grid_response["data"])
             edited_df.index = df_last_week.index
-            selected_rows = grid_response["selected_rows"]
 
             # 更新ボタン
             if st.button("更新"):
@@ -138,30 +127,15 @@ else:
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
                 st.experimental_rerun()
-
-            # 非表示ボタン
-            if st.button("非表示"):
-                if selected_rows is not None and len(selected_rows) > 0:
-                    for row in selected_rows:
-                        index_in_df = row.get("index")  # AgGrid 選択行の元DataFrame index
-                        if index_in_df is not None and index_in_df not in st.session_state.hidden_rows:
-                            st.session_state.hidden_rows.append(index_in_df)
-                    st.experimental_rerun()
-                else:
-                    st.info("非表示にする行を選択してください。")
         else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（非表示行を除く）
-    df_to_download = df.copy()
-    if st.session_state.hidden_rows:
-        df_to_download = df_to_download.drop(st.session_state.hidden_rows, errors='ignore')
-
+    # Excel ダウンロード（全記録）
     excel_buffer = io.BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df_to_download.to_excel(writer, index=False)
+        df.to_excel(writer, index=False)
     excel_buffer.seek(0)
     st.download_button(
         label="Excel をダウンロード",
