@@ -10,6 +10,7 @@ PASSWORD = "0626"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+# 非表示行管理
 if "hidden_rows" not in st.session_state:
     st.session_state.hidden_rows = []
 
@@ -51,7 +52,8 @@ else:
         amount = -abs(amount)
 
     if st.button("保存"):
-        new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]], columns=["日付", "タイプ", "種類", "金額"])
+        new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]],
+                                columns=["日付", "タイプ", "種類", "金額"])
         df = pd.concat([df, new_data], ignore_index=True)
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
@@ -68,10 +70,11 @@ else:
 
         # 非表示行を除外
         if st.session_state.hidden_rows:
-            df_last_week = df_last_week.drop(index=[i-1 for i in st.session_state.hidden_rows if i-1 < len(df_last_week)]).reset_index(drop=True)
+            df_last_week = df_last_week.drop(index=[i for i in st.session_state.hidden_rows if i < len(df_last_week)]).reset_index(drop=True)
 
         if not df_last_week.empty:
-            df_last_week.index = df_last_week.index + 1
+            # AgGrid 用 No 列
+            df_last_week.index = df_last_week.index
             df_last_week.index.name = "No"
 
             gb = GridOptionsBuilder.from_dataframe(df_last_week)
@@ -140,13 +143,12 @@ else:
             if st.button("非表示"):
                 if selected_rows is not None and len(selected_rows) > 0:
                     for row in selected_rows:
-                        no = int(row["No"])
-                        if no not in st.session_state.hidden_rows:
-                            st.session_state.hidden_rows.append(no)
+                        node_id = int(row["_selectedRowNodeInfo"]["nodeId"])
+                        if node_id not in st.session_state.hidden_rows:
+                            st.session_state.hidden_rows.append(node_id)
                     st.experimental_rerun()
                 else:
                     st.info("非表示にする行を選択してください。")
-
         else:
             st.info("直近1週間の記録はありません。")
     else:
@@ -156,7 +158,7 @@ else:
     df_to_download = df.copy()
     if st.session_state.hidden_rows:
         last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-        drop_idx = [last_week_indices[no-1] for no in st.session_state.hidden_rows if (no-1) < len(last_week_indices)]
+        drop_idx = [last_week_indices[i] for i in st.session_state.hidden_rows if i < len(last_week_indices)]
         df_to_download = df_to_download.drop(drop_idx)
 
     excel_buffer = io.BytesIO()
