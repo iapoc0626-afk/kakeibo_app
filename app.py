@@ -38,19 +38,15 @@ else:
 
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
 
-    # 金額を絶対値に統一する関数
-    def abs_amount(val):
-        try:
-            return abs(float(val))
-        except:
-            return 0
-
     # 入力エリア
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     kind = st.selectbox("種類", categories)
-    amount = abs(st.number_input("金額", step=100, format="%d"))
+    amount_input = st.number_input("金額", step=100, format="%d")
+
+    # 支出は自動でマイナス、収入はプラス
+    amount = -abs(amount_input) if type_ == "支出" else abs(amount_input)
 
     if st.button("保存"):
         new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]],
@@ -69,14 +65,11 @@ else:
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
 
         if not df_last_week.empty:
-            # AgGrid 用 No 列（表示用）
             df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
             gb = GridOptionsBuilder.from_dataframe(df_last_week)
             gb.configure_default_column(editable=True)
-
-            # 日付カレンダー編集
             gb.configure_column(
                 "日付",
                 editable=True,
@@ -99,7 +92,6 @@ else:
             gb.configure_column("金額", editable=True)
 
             grid_options = gb.build()
-
             grid_response = AgGrid(
                 df_last_week,
                 gridOptions=grid_options,
@@ -117,11 +109,17 @@ else:
                 last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
                     if original_idx < len(df):
+                        val = edited_df.loc[df_last_week.index[idx], "金額"]
+                        # 支出ならマイナス、収入ならプラス
+                        if edited_df.loc[df_last_week.index[idx], "タイプ"] == "支出":
+                            val = -abs(val)
+                        else:
+                            val = abs(val)
                         df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = [
                             edited_df.loc[df_last_week.index[idx], "日付"],
                             edited_df.loc[df_last_week.index[idx], "タイプ"],
                             edited_df.loc[df_last_week.index[idx], "種類"],
-                            abs_amount(edited_df.loc[df_last_week.index[idx], "金額"])
+                            val
                         ]
                 st.success("更新しました！")
 
@@ -131,11 +129,8 @@ else:
     # Excel ダウンロード（テーブル形式、日付付き）
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     download_filename = f"kakeibo_{today_str}.xlsx"
-
-    # 一時的にExcelファイルを書き出す
     df.to_excel(FILE_NAME, index=False)
 
-    # openpyxl でテーブル化
     wb = load_workbook(FILE_NAME)
     ws = wb.active
 
@@ -157,9 +152,8 @@ else:
 
     with open(FILE_NAME, "rb") as f:
         st.download_button(
-            label="Excel をダウンロード",
+            label="Excel をダウンロード（テーブル形式）",
             data=f,
             file_name=download_filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
