@@ -3,11 +3,11 @@ import pandas as pd
 import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# --- 設定 ---
+# ファイル名とカラム定義
 FILE_NAME = "kakeibo.xlsx"
 COLUMNS = ["日付", "タイプ", "種類", "金額"]
 
-# --- 初期化 ---
+# --- データ初期化 ---
 if "df" not in st.session_state:
     try:
         df = pd.read_excel(FILE_NAME)
@@ -27,7 +27,7 @@ with st.form("input_form", clear_on_submit=True):
     with col1:
         date = st.date_input("日付", datetime.date.today())
     with col2:
-        income_expense = st.selectbox("タイプ", ["収入", "支出"])
+        type_option = st.selectbox("タイプ", ["収入", "支出"])
 
     category = st.selectbox("種類", ["食費", "日用品", "交通", "娯楽", "給与", "その他"])
     amount = st.number_input("金額", min_value=0, step=100)
@@ -35,7 +35,7 @@ with st.form("input_form", clear_on_submit=True):
     submitted = st.form_submit_button("追加")
 
 if submitted:
-    new_row = pd.DataFrame([[date, income_expense, category, amount]], columns=COLUMNS)
+    new_row = pd.DataFrame([[date, type_option, category, amount]], columns=COLUMNS)
     df = pd.concat([df, new_row], ignore_index=True)
     st.session_state.df = df
     df.to_excel(FILE_NAME, index=False)
@@ -47,12 +47,12 @@ st.subheader("直近1週間の記録")
 one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
 df_last_week = df[pd.to_datetime(df["日付"], errors="coerce") >= pd.to_datetime(one_week_ago)].copy()
 
-# 行番号 No を振る
+# 行番号（No列）を付与
 df_last_week = df_last_week.reset_index(drop=True)
 df_last_week.index = df_last_week.index + 1
 df_last_week.insert(0, "No", df_last_week.index)
 
-# --- 表の表示 ---
+# --- 表をAgGridで表示 ---
 gb = GridOptionsBuilder.from_dataframe(df_last_week)
 gb.configure_selection("multiple", use_checkbox=True)
 grid_options = gb.build()
@@ -67,7 +67,7 @@ grid_response = AgGrid(
 
 selected_rows = grid_response["selected_rows"]
 
-# --- 削除機能 ---
+# --- 削除機構 ---
 if st.button("削除"):
     if selected_rows is not None and len(selected_rows) > 0:
         st.warning(f"選択された {len(selected_rows)} 件を削除しますか？")
@@ -80,7 +80,7 @@ if st.button("削除"):
             # 削除対象の No を抽出
             delete_nos = [int(row["No"]) for row in selected_rows]
 
-            # df_last_week のインデックスを df にマッピング
+            # df_last_week の行番号を元の df のインデックスに変換
             last_week_indices = df[
                 pd.to_datetime(df["日付"], errors="coerce") >= pd.to_datetime(one_week_ago)
             ].index
@@ -97,7 +97,7 @@ if st.button("削除"):
     else:
         st.info("削除する行を選択してください。")
 
-# --- 合計の表示 ---
+# --- 集計表示 ---
 st.subheader("直近1週間の集計")
 if not df_last_week.empty:
     total_income = df_last_week[df_last_week["タイプ"] == "収入"]["金額"].sum()
