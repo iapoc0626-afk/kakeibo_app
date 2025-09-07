@@ -132,9 +132,9 @@ else:
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
 
-            # 削除ボタン
+            # 削除ボタン（空チェックを len() で判定するよう修正）
             if st.button("削除"):
-                if selected_rows:
+                if selected_rows is not None and len(selected_rows) > 0:
                     st.warning(f"{len(selected_rows)} 件の行を削除しますか？")
                     confirm = st.radio("本当に削除しますか？", ["いいえ", "はい"], horizontal=True, key="delete_confirm")
                     if confirm == "はい":
