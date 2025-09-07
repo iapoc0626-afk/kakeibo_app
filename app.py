@@ -135,23 +135,24 @@ else:
 
             # --- 削除機能 ---
             selected_rows = grid_response["selected_rows"]
-            if selected_rows:
+            if selected_rows is not None and len(selected_rows) > 0:
                 st.warning(f"選択された {len(selected_rows)} 件を削除しますか？")
                 confirm = st.radio("本当に削除しますか？", ["いいえ", "はい"], horizontal=True)
-
+            
                 if confirm == "はい":
                     delete_nos = [row["No"] for row in selected_rows]
                     df_last_week = df_last_week.drop(delete_nos, errors="ignore")
-
+            
                     # インデックスを対応付けて削除
                     last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                     drop_idx = [last_week_indices[i-1] for i in delete_nos if i-1 < len(last_week_indices)]
                     df = df.drop(drop_idx)
-
+            
                     st.session_state.df = df
                     df.to_excel(FILE_NAME, index=False)
                     st.success("削除しました！")
                     st.rerun()  # 即時反映
+
         else:
             st.info("直近1週間の記録はありません。")
     else:
@@ -168,3 +169,4 @@ else:
         file_name="kakeibo.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
