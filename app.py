@@ -10,6 +10,9 @@ PASSWORD = "0626"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+if "hidden_rows" not in st.session_state:
+    st.session_state.hidden_rows = []
+
 if not st.session_state.authenticated:
     st.title("ログイン")
     pwd = st.text_input("パスワードを入力", type="password")
@@ -53,8 +56,8 @@ else:
         df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
-    # --- 直近1週間の表（編集＋削除可能） ---
-    st.header("📊 直近1週間の記録（編集・削除可能）")
+    # --- 直近1週間の表（編集＋非表示可能） ---
+    st.header("📊 直近1週間の記録（編集・非表示可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
         df = df[df["日付"].notna()]
@@ -62,6 +65,10 @@ else:
 
         one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
         df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
+
+        # 非表示行を除外
+        if st.session_state.hidden_rows:
+            df_last_week = df_last_week.drop(index=[i-1 for i in st.session_state.hidden_rows if i-1 < len(df_last_week)]).reset_index(drop=True)
 
         if not df_last_week.empty:
             df_last_week.index = df_last_week.index + 1
@@ -123,35 +130,38 @@ else:
             if st.button("更新"):
                 last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
+                    if original_idx < len(df):
+                        df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
                 st.experimental_rerun()
 
-            # 削除ボタン
-            if st.button("削除"):
+            # 非表示ボタン
+            if st.button("非表示"):
                 if selected_rows is not None and len(selected_rows) > 0:
-                    confirm = st.radio("本当に削除しますか？", ["いいえ", "はい"], horizontal=True, key="delete_confirm")
-                    if confirm == "はい":
-                        # 選択行の No から df のインデックスを特定
-                        delete_nos = [int(row["No"]) for row in selected_rows]
-                        last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-                        drop_idx = [last_week_indices[no - 1] for no in delete_nos if (no - 1) < len(last_week_indices)]
-                        df = df.drop(drop_idx)
-                        df.to_excel(FILE_NAME, index=False)
-                        st.success("削除しました！")
-                        st.experimental_rerun()
+                    for row in selected_rows:
+                        no = int(row["No"])
+                        if no not in st.session_state.hidden_rows:
+                            st.session_state.hidden_rows.append(no)
+                    st.experimental_rerun()
                 else:
-                    st.info("削除する行を選択してください。")
+                    st.info("非表示にする行を選択してください。")
+
         else:
             st.info("直近1週間の記録はありません。")
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード
+    # Excel ダウンロード（非表示行を除く）
+    df_to_download = df.copy()
+    if st.session_state.hidden_rows:
+        last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
+        drop_idx = [last_week_indices[no-1] for no in st.session_state.hidden_rows if (no-1) < len(last_week_indices)]
+        df_to_download = df_to_download.drop(drop_idx)
+
     excel_buffer = io.BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
+        df_to_download.to_excel(writer, index=False)
     excel_buffer.seek(0)
     st.download_button(
         label="Excel をダウンロード",
