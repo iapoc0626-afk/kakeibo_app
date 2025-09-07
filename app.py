@@ -143,11 +143,9 @@ else:
             if st.button("非表示"):
                 if selected_rows is not None and len(selected_rows) > 0:
                     for row in selected_rows:
-                        no = row.get("No", None)
-                        if no is not None:
-                            hidden_idx = int(no) - 1  # 0-index に変換
-                            if hidden_idx not in st.session_state.hidden_rows:
-                                st.session_state.hidden_rows.append(hidden_idx)
+                        index_in_df = row.get("index")  # AgGrid 選択行の元DataFrame index
+                        if index_in_df is not None and index_in_df not in st.session_state.hidden_rows:
+                            st.session_state.hidden_rows.append(index_in_df)
                     st.experimental_rerun()
                 else:
                     st.info("非表示にする行を選択してください。")
@@ -159,9 +157,7 @@ else:
     # Excel ダウンロード（非表示行を除く）
     df_to_download = df.copy()
     if st.session_state.hidden_rows:
-        last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-        drop_idx = [last_week_indices[i] for i in st.session_state.hidden_rows if i < len(last_week_indices)]
-        df_to_download = df_to_download.drop(drop_idx)
+        df_to_download = df_to_download.drop(st.session_state.hidden_rows, errors='ignore')
 
     excel_buffer = io.BytesIO()
     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
