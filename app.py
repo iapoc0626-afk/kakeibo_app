@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import datetime
 import os
-import io
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 # ---- パスワード認証 ----
@@ -131,14 +130,13 @@ else:
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（全記録）
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-    excel_buffer.seek(0)
-    st.download_button(
-        label="Excel をダウンロード",
-        data=excel_buffer,
-        file_name="kakeibo.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # Excel ダウンロード（サーバー上のファイルをそのまま使用し上書き対応）
+    df.to_excel(FILE_NAME, index=False)  # サーバー上の kakeibo.xlsx を上書き
+
+    with open(FILE_NAME, "rb") as f:
+        st.download_button(
+            label="Excel をダウンロード",
+            data=f,
+            file_name="kakeibo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
