@@ -132,7 +132,7 @@ else:
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
 
-            # 削除ボタン（空チェックを len() で判定するよう修正）
+            # 削除ボタン（空チェックを len() で判定＋削除後に再描画）
             if st.button("削除"):
                 if selected_rows is not None and len(selected_rows) > 0:
                     st.warning(f"{len(selected_rows)} 件の行を削除しますか？")
@@ -144,7 +144,16 @@ else:
                         df = df.drop(drop_idx)
                         df.to_excel(FILE_NAME, index=False)
                         st.success("削除しました！")
-                        st.experimental_rerun()
+
+                        # --- 削除後に df_last_week を再計算して即反映 ---
+                        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
+                        if not df_last_week.empty:
+                            df_last_week.index = df_last_week.index + 1
+                            df_last_week.index.name = "No"
+                            st.dataframe(df_last_week)
+                        else:
+                            st.info("直近1週間の記録はありません。")
+                        st.stop()  # 表示を即更新して処理停止
                 else:
                     st.info("削除する行を選択してください。")
         else:
