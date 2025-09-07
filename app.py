@@ -130,13 +130,17 @@ else:
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（サーバー上のファイルをそのまま使用し上書き対応）
-    df.to_excel(FILE_NAME, index=False)  # サーバー上の kakeibo.xlsx を上書き
+    # Excel ダウンロード（ファイル名に日付を付与）
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+    download_filename = f"kakeibo_{today_str}.xlsx"
+
+    # サーバー上のファイルも上書き
+    df.to_excel(FILE_NAME, index=False)
 
     with open(FILE_NAME, "rb") as f:
         st.download_button(
             label="Excel をダウンロード",
             data=f,
-            file_name="kakeibo.xlsx",
+            file_name=download_filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
