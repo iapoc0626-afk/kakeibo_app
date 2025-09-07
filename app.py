@@ -10,7 +10,7 @@ PASSWORD = "0626"
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# 非表示行管理
+# 非表示行管理（0-index）
 if "hidden_rows" not in st.session_state:
     st.session_state.hidden_rows = []
 
@@ -73,8 +73,8 @@ else:
             df_last_week = df_last_week.drop(index=[i for i in st.session_state.hidden_rows if i < len(df_last_week)]).reset_index(drop=True)
 
         if not df_last_week.empty:
-            # AgGrid 用 No 列
-            df_last_week.index = df_last_week.index
+            # AgGrid 用 No 列（表示用）
+            df_last_week.index = df_last_week.index + 1
             df_last_week.index.name = "No"
 
             gb = GridOptionsBuilder.from_dataframe(df_last_week)
@@ -143,9 +143,11 @@ else:
             if st.button("非表示"):
                 if selected_rows is not None and len(selected_rows) > 0:
                     for row in selected_rows:
-                        node_id = int(row["_selectedRowNodeInfo"]["nodeId"])
-                        if node_id not in st.session_state.hidden_rows:
-                            st.session_state.hidden_rows.append(node_id)
+                        no = row.get("No", None)
+                        if no is not None:
+                            hidden_idx = int(no) - 1  # 0-index に変換
+                            if hidden_idx not in st.session_state.hidden_rows:
+                                st.session_state.hidden_rows.append(hidden_idx)
                     st.experimental_rerun()
                 else:
                     st.info("非表示にする行を選択してください。")
