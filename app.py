@@ -1,172 +1,108 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import os
-import io
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
-# ---- パスワード認証 ----
-PASSWORD = "0626"
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+# --- 設定 ---
+FILE_NAME = "kakeibo.xlsx"
+COLUMNS = ["日付", "タイプ", "種類", "金額"]
 
-if not st.session_state.authenticated:
-    st.title("ログイン")
-    pwd = st.text_input("パスワードを入力", type="password")
-    if st.button("ログイン"):
-        if pwd == PASSWORD:
-            st.session_state.authenticated = True
-            st.success("ログイン成功！")
-        else:
-            st.error("パスワードが違います")
-else:
-    # 保存先
-    save_dir = r"C:\Users\iapoc\OneDrive\Desktop"
-    FILE_NAME = os.path.join(save_dir, "kakeibo.xlsx")
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    # DataFrame をセッションに保持
-    if "df" not in st.session_state:
-        if os.path.exists(FILE_NAME):
-            st.session_state.df = pd.read_excel(FILE_NAME)
-        else:
-            st.session_state.df = pd.DataFrame(columns=["日付", "タイプ", "種類", "金額"])
-
-    df = st.session_state.df
-
-    st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
-    st.markdown("<h1 style='color:#1E90FF;'>📒 家計簿アプリ</h1>", unsafe_allow_html=True)
-
-    categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
-
-    # 入力エリア
-    st.header("収支を入力")
-    date = st.date_input("日付", datetime.date.today())
-    type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
-    kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=100, format="%d")
-
-    if type_ == "支出":
-        amount = -abs(amount)
-
-    if st.button("保存"):
-        new_data = pd.DataFrame(
-            [[date.strftime("%Y/%m/%d"), type_, kind, amount]],
-            columns=["日付", "タイプ", "種類", "金額"]
-        )
-        df = pd.concat([df, new_data], ignore_index=True)
+# --- 初期化 ---
+if "df" not in st.session_state:
+    try:
+        df = pd.read_excel(FILE_NAME)
         st.session_state.df = df
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=COLUMNS)
         df.to_excel(FILE_NAME, index=False)
-        st.success("保存しました！")
-        st.rerun()  # 即時反映
-
-    # --- 直近1週間の表（編集 & 削除対応） ---
-    st.header("📊 直近1週間の記録（編集・削除可能）")
-    if not df.empty:
-        df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
-        df = df[df["日付"].notna()]
-        df["日付"] = df["日付"].dt.strftime("%Y/%m/%d")
         st.session_state.df = df
 
-        one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
-        df_last_week = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].copy().reset_index(drop=True)
+df = st.session_state.df
 
-        if not df_last_week.empty:
-            df_last_week.index = df_last_week.index + 1
-            df_last_week.index.name = "No"
+# --- 入力フォーム ---
+st.header("家計簿アプリ")
 
-            gb = GridOptionsBuilder.from_dataframe(df_last_week)
-            gb.configure_default_column(editable=True)
+with st.form("input_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        date = st.date_input("日付", datetime.date.today())
+    with col2:
+        income_expense = st.selectbox("タイプ", ["収入", "支出"])
 
-            # --- 日付をカレンダー入力に ---
-            gb.configure_column(
-                "日付",
-                editable=True,
-                cellEditor="agDateCellEditor",
-                cellEditorParams={
-                    "useFormatter": True,
-                    "dateFormat": "yyyy/MM/dd"
-                }
-            )
+    category = st.selectbox("種類", ["食費", "日用品", "交通", "娯楽", "給与", "その他"])
+    amount = st.number_input("金額", min_value=0, step=100)
 
-            gb.configure_column(
-                "タイプ",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values": ["支出", "収入"]}
-            )
+    submitted = st.form_submit_button("追加")
 
-            gb.configure_column(
-                "種類",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values": categories}
-            )
+if submitted:
+    new_row = pd.DataFrame([[date, income_expense, category, amount]], columns=COLUMNS)
+    df = pd.concat([df, new_row], ignore_index=True)
+    st.session_state.df = df
+    df.to_excel(FILE_NAME, index=False)
+    st.success("追加しました！")
+    st.rerun()
 
-            gb.configure_column("金額", editable=True)
+# --- 直近1週間の表示 ---
+st.subheader("直近1週間の記録")
+one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+df_last_week = df[pd.to_datetime(df["日付"], errors="coerce") >= pd.to_datetime(one_week_ago)].copy()
 
-            # --- チェックボックス選択列を追加 ---
-            gb.configure_selection("multiple", use_checkbox=True)
+# 行番号 No を振る
+df_last_week = df_last_week.reset_index(drop=True)
+df_last_week.index = df_last_week.index + 1
+df_last_week.insert(0, "No", df_last_week.index)
 
-            grid_options = gb.build()
+# --- 表の表示 ---
+gb = GridOptionsBuilder.from_dataframe(df_last_week)
+gb.configure_selection("multiple", use_checkbox=True)
+grid_options = gb.build()
 
-            grid_response = AgGrid(
-                df_last_week,
-                gridOptions=grid_options,
-                update_mode=GridUpdateMode.VALUE_CHANGED,
-                fit_columns_on_grid_load=True,
-                enable_enterprise_modules=False,
-                allow_unsafe_jscode=True
-            )
+grid_response = AgGrid(
+    df_last_week,
+    gridOptions=grid_options,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    theme="alpine",
+    fit_columns_on_grid_load=True
+)
 
-            edited_df = pd.DataFrame(grid_response["data"])
-            edited_df.index = df_last_week.index
+selected_rows = grid_response["selected_rows"]
 
-            # 更新ボタン
-            if st.button("更新"):
-                last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-                for idx, original_idx in enumerate(last_week_indices):
-                    df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
-                st.session_state.df = df
-                df.to_excel(FILE_NAME, index=False)
-                st.success("更新しました！")
-                st.rerun()  # 即時反映
+# --- 削除機能 ---
+if st.button("削除"):
+    if selected_rows is not None and len(selected_rows) > 0:
+        st.warning(f"選択された {len(selected_rows)} 件を削除しますか？")
+        confirm = st.radio(
+            "本当に削除しますか？", ["いいえ", "はい"],
+            horizontal=True, key="delete_confirm"
+        )
 
-            # --- 削除機能 ---
-            selected_rows = grid_response["selected_rows"]
-            if selected_rows is not None and len(selected_rows) > 0:
-                st.warning(f"選択された {len(selected_rows)} 件を削除しますか？")
-                confirm = st.radio("本当に削除しますか？", ["いいえ", "はい"], horizontal=True)
-            
-                if confirm == "はい":
-                    delete_nos = [row["No"] for row in selected_rows]
-                    df_last_week = df_last_week.drop(delete_nos, errors="ignore")
-            
-                    # インデックスを対応付けて削除
-                    last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
-                    drop_idx = [last_week_indices[i-1] for i in delete_nos if i-1 < len(last_week_indices)]
-                    df = df.drop(drop_idx)
-            
-                    st.session_state.df = df
-                    df.to_excel(FILE_NAME, index=False)
-                    st.success("削除しました！")
-                    st.rerun()  # 即時反映
+        if confirm == "はい":
+            # 削除対象の No を抽出
+            delete_nos = [int(row["No"]) for row in selected_rows]
 
-        else:
-            st.info("直近1週間の記録はありません。")
+            # df_last_week のインデックスを df にマッピング
+            last_week_indices = df[
+                pd.to_datetime(df["日付"], errors="coerce") >= pd.to_datetime(one_week_ago)
+            ].index
+
+            drop_idx = [last_week_indices[no - 1] for no in delete_nos if (no - 1) < len(last_week_indices)]
+
+            # 削除実行
+            df = df.drop(drop_idx)
+
+            st.session_state.df = df
+            df.to_excel(FILE_NAME, index=False)
+            st.success("削除しました！")
+            st.rerun()
     else:
-        st.info("まだ記録がありません。")
+        st.info("削除する行を選択してください。")
 
-    # Excel ダウンロード（全記録）
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
-    excel_buffer.seek(0)
-    st.download_button(
-        label="Excel をダウンロード",
-        data=excel_buffer,
-        file_name="kakeibo.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
+# --- 合計の表示 ---
+st.subheader("直近1週間の集計")
+if not df_last_week.empty:
+    total_income = df_last_week[df_last_week["タイプ"] == "収入"]["金額"].sum()
+    total_expense = df_last_week[df_last_week["タイプ"] == "支出"]["金額"].sum()
+    st.metric("収入合計", f"{total_income} 円")
+    st.metric("支出合計", f"{total_expense} 円")
+else:
+    st.write("直近1週間の記録はありません。")
