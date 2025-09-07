@@ -38,21 +38,24 @@ else:
 
     categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
 
+    # 金額を絶対値に統一する関数
+    def abs_amount(val):
+        try:
+            return abs(float(val))
+        except:
+            return 0
+
     # 入力エリア
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
     kind = st.selectbox("種類", categories)
-    amount = st.number_input("金額", step=100, format="%d")
-
-    # 金額を正の値に統一
-    amount = abs(amount)
+    amount = abs(st.number_input("金額", step=100, format="%d"))
 
     if st.button("保存"):
         new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]],
                                 columns=["日付", "タイプ", "種類", "金額"])
         df = pd.concat([df, new_data], ignore_index=True)
-        df.to_excel(FILE_NAME, index=False)
         st.success("保存しました！")
 
     # --- 直近1週間の表（編集のみ） ---
@@ -91,18 +94,8 @@ else:
                 }
                 """
             )
-            gb.configure_column(
-                "タイプ",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values": ["支出", "収入"]}
-            )
-            gb.configure_column(
-                "種類",
-                editable=True,
-                cellEditor='agSelectCellEditor',
-                cellEditorParams={"values": categories}
-            )
+            gb.configure_column("タイプ", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": ["支出", "収入"]})
+            gb.configure_column("種類", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": categories})
             gb.configure_column("金額", editable=True)
 
             grid_options = gb.build()
@@ -124,38 +117,33 @@ else:
                 last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
                     if original_idx < len(df):
-                        edited_amount = abs(edited_df.loc[df_last_week.index[idx], "金額"])
                         df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = [
                             edited_df.loc[df_last_week.index[idx], "日付"],
                             edited_df.loc[df_last_week.index[idx], "タイプ"],
                             edited_df.loc[df_last_week.index[idx], "種類"],
-                            edited_amount
+                            abs_amount(edited_df.loc[df_last_week.index[idx], "金額"])
                         ]
-                df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
 
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（テーブル形式）
+    # Excel ダウンロード（テーブル形式、日付付き）
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     download_filename = f"kakeibo_{today_str}.xlsx"
 
-    # 上書き保存
+    # 一時的にExcelファイルを書き出す
     df.to_excel(FILE_NAME, index=False)
 
     # openpyxl でテーブル化
     wb = load_workbook(FILE_NAME)
     ws = wb.active
 
-    # テーブル範囲（ヘッダー含む）
     n_rows = ws.max_row
     n_cols = ws.max_column
     table_ref = f"A1:{chr(64+n_cols)}{n_rows}"
 
     table = Table(displayName="KakeiboTable", ref=table_ref)
-
-    # スタイル設定
     style = TableStyleInfo(
         name="TableStyleMedium9",
         showFirstColumn=False,
