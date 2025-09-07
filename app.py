@@ -43,8 +43,8 @@ else:
     kind = st.selectbox("種類", categories)
     amount = st.number_input("金額", step=100, format="%d")
 
-    if type_ == "支出":
-        amount = -abs(amount)
+    # ここで支出も収入も正の値に統一
+    amount = abs(amount)
 
     if st.button("保存"):
         new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]],
@@ -122,7 +122,14 @@ else:
                 last_week_indices = df[pd.to_datetime(df["日付"], errors='coerce') >= pd.to_datetime(one_week_ago)].index
                 for idx, original_idx in enumerate(last_week_indices):
                     if original_idx < len(df):
-                        df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = edited_df.loc[df_last_week.index[idx], ["日付", "タイプ", "種類", "金額"]]
+                        # 編集後も金額を正の値に統一
+                        edited_amount = abs(edited_df.loc[df_last_week.index[idx], "金額"])
+                        df.loc[original_idx, ["日付", "タイプ", "種類", "金額"]] = [
+                            edited_df.loc[df_last_week.index[idx], "日付"],
+                            edited_df.loc[df_last_week.index[idx], "タイプ"],
+                            edited_df.loc[df_last_week.index[idx], "種類"],
+                            edited_amount
+                        ]
                 df.to_excel(FILE_NAME, index=False)
                 st.success("更新しました！")
         else:
