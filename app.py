@@ -36,25 +36,54 @@ else:
     st.set_page_config(page_title="家計簿アプリ", page_icon="💰", layout="centered")
     st.markdown("<h1 style='color:#1E90FF;'>📒 家計簿アプリ</h1>", unsafe_allow_html=True)
 
-    categories = ["食費","交通費","日用品費","娯楽費","美容費","交際費","医療費","給与","その他"]
+    # --- カテゴリ設定 ---
+    expense_categories = ["食費", "交通費", "日用品費", "娯楽費", "美容費", "交際費", "医療費", "投資", "その他"]
+    income_categories = ["給与", "その他"]
 
     # 入力エリア
     st.header("収支を入力")
     date = st.date_input("日付", datetime.date.today())
     type_ = st.radio("タイプ", ["支出", "収入"], horizontal=True)
-    kind = st.selectbox("種類", categories)
+
+    if type_ == "支出":
+        kind = st.selectbox("種類", expense_categories)
+    else:
+        kind = st.selectbox("種類", income_categories)
+
     amount_input = st.number_input("金額", step=100, format="%d")
 
-    # 支出は自動でマイナス、収入はプラス
+    # 支出はマイナス、収入はプラス
     amount = -abs(amount_input) if type_ == "支出" else abs(amount_input)
 
     if st.button("保存"):
         new_data = pd.DataFrame([[date.strftime("%Y/%m/%d"), type_, kind, amount]],
                                 columns=["日付", "タイプ", "種類", "金額"])
         df = pd.concat([df, new_data], ignore_index=True)
-        st.success("保存しました！")
 
-    # --- 直近1週間の表（編集のみ） ---
+        # 保存のたびにExcelへ反映
+        df.to_excel(FILE_NAME, index=False)
+
+        # Excelをテーブル形式に整形
+        wb = load_workbook(FILE_NAME)
+        ws = wb.active
+        n_rows = ws.max_row
+        n_cols = ws.max_column
+        table_ref = f"A1:{chr(64+n_cols)}{n_rows}"
+        table = Table(displayName="KakeiboTable", ref=table_ref)
+        style = TableStyleInfo(
+            name="TableStyleMedium9",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False
+        )
+        table.tableStyleInfo = style
+        ws.add_table(table)
+        wb.save(FILE_NAME)
+
+        st.success("保存しました！（Excelに反映済み）")
+
+    # --- 直近1週間の表（編集可能） ---
     st.header("📊 直近1週間の記録（編集可能）")
     if not df.empty:
         df["日付"] = pd.to_datetime(df["日付"], errors='coerce')
@@ -88,7 +117,7 @@ else:
                 """
             )
             gb.configure_column("タイプ", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": ["支出", "収入"]})
-            gb.configure_column("種類", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": categories})
+            gb.configure_column("種類", editable=True, cellEditor='agSelectCellEditor', cellEditorParams={"values": expense_categories + income_categories})
             gb.configure_column("金額", editable=True)
 
             grid_options = gb.build()
@@ -121,34 +150,35 @@ else:
                             edited_df.loc[df_last_week.index[idx], "種類"],
                             val
                         ]
-                st.success("更新しました！")
+
+                # Excelに更新内容を保存
+                df.to_excel(FILE_NAME, index=False)
+
+                wb = load_workbook(FILE_NAME)
+                ws = wb.active
+                n_rows = ws.max_row
+                n_cols = ws.max_column
+                table_ref = f"A1:{chr(64+n_cols)}{n_rows}"
+                table = Table(displayName="KakeiboTable", ref=table_ref)
+                style = TableStyleInfo(
+                    name="TableStyleMedium9",
+                    showFirstColumn=False,
+                    showLastColumn=False,
+                    showRowStripes=True,
+                    showColumnStripes=False
+                )
+                table.tableStyleInfo = style
+                ws.add_table(table)
+                wb.save(FILE_NAME)
+
+                st.success("更新しました！（Excelに反映済み）")
 
     else:
         st.info("まだ記録がありません。")
 
-    # Excel ダウンロード（テーブル形式、日付付き）
+    # Excel ダウンロード（常に最新データ）
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     download_filename = f"kakeibo_{today_str}.xlsx"
-    df.to_excel(FILE_NAME, index=False)
-
-    wb = load_workbook(FILE_NAME)
-    ws = wb.active
-
-    n_rows = ws.max_row
-    n_cols = ws.max_column
-    table_ref = f"A1:{chr(64+n_cols)}{n_rows}"
-
-    table = Table(displayName="KakeiboTable", ref=table_ref)
-    style = TableStyleInfo(
-        name="TableStyleMedium9",
-        showFirstColumn=False,
-        showLastColumn=False,
-        showRowStripes=True,
-        showColumnStripes=False
-    )
-    table.tableStyleInfo = style
-    ws.add_table(table)
-    wb.save(FILE_NAME)
 
     with open(FILE_NAME, "rb") as f:
         st.download_button(
